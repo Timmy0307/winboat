@@ -13,10 +13,23 @@ The settings refresh button detects clients installed while WinBoat is running.
 
 `bun run dev` and `bun scripts/build.ts` automatically prepare the bundled client.
 You can prepare it separately with `bun run prepare:freerdp`. The first preparation
-downloads the pinned release in `scripts/freerdp-release.mjs`, verifies its archive
-and executable SHA-256 hashes, and extracts it to `.cache/freerdp/linux-x64/wbfreerdp`.
+downloads the pinned bundle in `scripts/freerdp-release.mjs`, verifies its archive,
+executable SHA-256 hashes and source revision, and extracts it to `.cache/freerdp/linux-x64/wbfreerdp`.
 Subsequent launches reuse the verified cache. To prepare without network access,
-set `WINBOAT_FREERDP_ARCHIVE` to a local copy of the same release archive.
+set `WINBOAT_FREERDP_ARCHIVE` to a local copy of the same runtime archive.
+
+WinBoat 1.0.9 pins FreeRDP revision `24b2e41269ecd04b9cd2dbea72fb8406b69b16a0`
+from [CI run 34383237067](https://github.com/winboat-org/WBFreeRDP/actions/runs/34383237067).
+It includes patches 0025–0027 for live Xwayland keymap detection and keyboard
+layout changes in supported RemoteApp sessions. Downloading this CI artifact
+requires an authenticated GitHub CLI (`gh`), as does the Helios bundle. CI artifacts
+expire; retain the downloaded archives for later offline builds. The runtime archive
+is `artifacts/wbfreerdp-linux-x64.tar.gz` inside the `wbfreerdp-linux-x64` CI artifact.
+
+The bundled client receives `+auto-reconnect`; system clients do not. Keyboard
+input remains in scancode mode. `RDPApps.reg` permits the client's keyboard layout
+with `IgnoreRemoteKeyboardLayout=0`, but updating WinBoat does not reimport this
+registry file into an existing Windows guest.
 
 The main process supplies the runtime path. Development resolves it relative to
 the compiled main entry point, independently of the working directory. Packaged
@@ -35,7 +48,8 @@ x64; unsupported targets fail explicitly.
 ## Sources and host integration
 
 The runtime directory includes original notices, a build manifest and `SOURCES.md`
-linking to the matching source and relinking archives in the WBFreeRDP release.
+linking to the matching source and relinking archives in the pinned WBFreeRDP release
+or CI artifact. Preparation corrects the CI bundle's older release link to its exact run.
 The source bundle includes the Alpine sources and recipes for linked libraries.
 The relinking kit contains the client objects/static libraries and instructions
 for using modified libraries. Runtime execution does not enforce a release hash,
@@ -65,3 +79,11 @@ missing-system-client detection. Each final AppImage, DEB, RPM and TAR.BZ2 was
 extracted and its bundled executable's checksum, permissions, notices and startup
 were verified. DEB/RPM metadata contains no FreeRDP dependency. A live connection
 with WinBoat's TLS options passed playback, microphone and drive transfer checks.
+
+WinBoat 1.0.9 was rebuilt on 2026-09-10 with CI revision `24b2e4126`. All 17
+selection/preparation tests passed, including CI download and checksum rejection.
+The FreeRDP executable, manifest and matching source reference were verified inside
+each AppImage, DEB, RPM and TAR.BZ2. Local software and VA-API decoding both matched
+the eight-frame reference; VA-API reported eight hardware frames. The CI artifact
+also records successful startup/decoder/runtime checks in five container environments.
+This rebuild did not repeat the live Windows keyboard test matrix.

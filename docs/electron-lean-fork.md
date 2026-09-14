@@ -238,18 +238,61 @@ For each new Electron version:
 8. Update the pinned URL, size, and hashes in WinBoat.
 9. Build WinBoat and verify its packaged executable hash.
 
-## Current limits and future work
+## Future optimization experiments
+
+The following items are unverified candidates, not release results.
+An exploratory Home-screen inspection measured approximately 266.8 MiB PSS after a long settle:
+81.4 MiB in the browser, 100.1 MiB in the renderer, 67.0 MiB in the GPU process,
+17.6 MiB in the zygotes, and 0.7 MiB in the AppImage helper.
+The state and profile differed from the published benchmark, so these values are not comparable with it.
+
+### First priority: ANGLE Vulkan
+
+The current ANGLE/OpenGL path maps LLVM and Mesa Gallium code.
+These mappings used approximately 12.4 MiB and 4.3 MiB PSS during the inspection.
+The build keeps the ANGLE Vulkan backend for SwiftShader, so the same binary can test native Vulkan with
+`--use-angle=vulkan` while Chromium Vulkan and Dawn remain disabled.
+
+This test has the clearest chance of a material RAM saving without another build.
+The initial estimate is 8 to 15 MiB PSS, but the result can be smaller or negative.
+Test hardware rendering, WebGL, DevTools, resizing, X11, Wayland, and SwiftShader fallback before adoption.
+
+### Smaller RAM experiments
+
+- Cap Chromium browser and renderer worker pools at four to six threads. The inspection found seven browser workers and eleven renderer workers idle after startup. This change can save thread stacks and allocator caches, but it can slow startup or parallel rendering.
+- Test `--num-raster-threads=1`. The current renderer uses four raster threads. Check resizing and animation performance.
+- Test `--disable-features=PartitionAllocLargeThreadCacheSize`. The renderer held approximately 2.2 MiB in PartitionAlloc thread caches.
+- Reduce the Skia glyph texture cache from 8 MiB to 2 MiB. Check text quality, scrolling, and redraw performance.
+- Train a PGO profile with WinBoat startup and normal routes. The current profile represents general Chromium use. A WinBoat profile can improve executable layout without removing APIs.
+- Test early `madvise(MADV_RANDOM)` on executable mappings. This can reduce Linux file-mapping readahead, but it can increase page faults and startup time. Treat this as research, not a planned change.
+
+The WinBoat Home screen also uses two large 200-pixel CSS blurs and a backdrop-blurred titlebar in `App.vue`.
+A controlled test should replace them with pre-rendered gradients.
+This is an application change, but it can reduce full-window GPU surfaces with little visual difference.
+
+### Disk-focused experiments
+
+- Create a WinBoat Blink and content feature profile. Candidate removals include browser WebRTC and media APIs, browser device APIs, service and background APIs, Protected Audience, shared storage, attribution, WebAudio, payments, credentials, WebNN, WebXR, WebGPU bindings, WebTransport, and direct sockets.
+- Keep WebGL, WebSockets, storage, DevTools workers, normal HTTP, and `fetch`.
+- Test ThinLTO optimization level 0 and `-Oz`. These options can reduce the executable but can also reduce performance.
+- Test a conservative English ICU data filter. `icudtl.dat` is 10.9 MB, but it contributes little live PSS.
+- Consider omitting frame pointers only after the loss of native profiling and stack-unwind quality is accepted.
+
+### Low-value or unsuitable changes
+
+- The renderer V8 heap was approximately 13.1 MiB. Disabling Sparkplug or making broad V8 changes has little RAM potential and can reduce JavaScript performance.
+- Maglev execution is disabled. V8 still compiles some Maglev graph-builder code because Turboshaft and TurboFan use it.
+- The general Skia cache limit is 256 MiB, but actual use was approximately 9 MiB. Reducing the limit above actual use has no effect.
+- Zero-copy switches do not affect the active GPU-raster path.
+- Zygote PSS is mostly shared executable code. Removing zygotes does not recover the displayed total and can reduce startup performance or security.
+
+## Current limits
 
 - The published fork supports Linux x86-64 only.
 - Disabled feature combinations have less upstream build coverage.
 - Every change requires compile, runtime, GPU, native-addon, and memory tests.
-- `optimize_for_size` can change CPU behavior. Measure performance after compiler changes.
-- Smaller Skia and GPU caches might save memory but can increase redraw and shader work.
-- A Blink modules profile could remove unused generated bindings and initializers.
-- Protected Audience is a good first Blink-profile candidate.
-- WebRTC, page WebGL, Bluetooth, FIDO, payments, HID, and WebUSB remain size candidates.
 - BackupRefPtr remains enabled because removing it has a memory-safety cost.
 - Accessibility remains enabled because no measured saving justifies its removal.
 
-Do not report executable size or process-count changes as direct RAM savings.
+Do not report an estimate, executable-size change, or process-count change as a RAM saving.
 Use matched whole-tree PSS measurements for every future optimization claim.

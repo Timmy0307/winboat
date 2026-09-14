@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream, constants } from "node:fs";
-import { access, chmod, copyFile, mkdir, readFile, rename, rm } from "node:fs/promises";
+import { access, chmod, copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import lockfile from "proper-lockfile";
@@ -27,7 +27,8 @@ export async function verifyFreeRDP(directory) {
     }
     await access(executable, constants.X_OK);
     const manifest = JSON.parse(await readFile(Path.join(directory, "manifest.json"), "utf8"));
-    if (manifest.executableSha256 !== winboatFreeRDP.executableSha256 || manifest.architecture !== "x64") {
+    if (manifest.executableSha256 !== winboatFreeRDP.executableSha256 || manifest.architecture !== "x64" ||
+        manifest.sourceRevision !== winboatFreeRDP.sourceRevision) {
         throw new Error("WBFreeRDP manifest does not match the pinned release.");
     }
     await access(Path.join(directory, "licenses", "FreeRDP", "LICENSE"));
@@ -68,6 +69,15 @@ async function prepareLocked() {
     try {
         if (process.env.WINBOAT_FREERDP_ARCHIVE) {
             await copyFile(Path.resolve(process.env.WINBOAT_FREERDP_ARCHIVE), archive);
+        } else if (winboatFreeRDP.ci) {
+            const { repository, runId, artifactName, archivePath } = winboatFreeRDP.ci;
+            const download = Path.join(temporary, "ci");
+            console.log(`Downloading WBFreeRDP from ${repository} CI run ${runId}...`);
+            await execFileAsync("gh", [
+                "run", "download", runId, "--repo", repository,
+                "--name", artifactName, "--dir", download,
+            ], { timeout: 300_000 });
+            await copyFile(Path.join(download, archivePath), archive);
         } else {
             console.log(`Downloading WBFreeRDP ${winboatFreeRDP.tag}...`);
             const response = await fetch(winboatFreeRDP.url, {
@@ -93,6 +103,17 @@ async function prepareLocked() {
         const extracted = Path.join(temporary, "wbfreerdp");
         await chmod(Path.join(extracted, "xfreerdp"), 0o755);
         await verifyFreeRDP(extracted);
+        if (winboatFreeRDP.ci) {
+            // The CI archive still links to the previous release's sources.
+            // Its matching source and relinking archives are in the same CI artifact.
+            const { repository, runId } = winboatFreeRDP.ci;
+            const sourcesPath = Path.join(extracted, "SOURCES.md");
+            const sources = await readFile(sourcesPath, "utf8");
+            await writeFile(sourcesPath, sources.replace(
+                /^https:\/\/github\.com\/winboat-org\/WBFreeRDP\/releases\/tag\/\S+$/m,
+                `https://github.com/${repository}/actions/runs/${runId}`,
+            ));
+        }
         await rm(freeRDPDirectory, { recursive: true, force: true });
         await rename(extracted, freeRDPDirectory);
         console.log(`WBFreeRDP is ready at ${freeRDPDirectory}`);
