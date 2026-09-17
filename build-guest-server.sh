@@ -10,10 +10,10 @@ export VERSION="$(bun -p "require('./package.json').version")"
 export COMMIT_HASH="$(git rev-parse --short HEAD)"
 export BUILD_TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S')
 
-# Helios WDDM bundle at 873caac
+# Helios WDDM bundle at 9c428ac
 HELIOS_REPOSITORY="winboat-org/helios"
-HELIOS_RUN_ID="34785908809"
-HELIOS_ARTIFACT="helios-windows-x64-22.22.288.0"
+HELIOS_RUN_ID="35230590982"
+HELIOS_ARTIFACT="helios-windows-x64-22.22.288.0-Release"
 HELIOS_DOWNLOAD_DIR=""
 
 cleanup() {
@@ -29,7 +29,7 @@ if [ -z "${HELIOS_BUNDLE:-}" ]; then
         --repo "$HELIOS_REPOSITORY" \
         --name "$HELIOS_ARTIFACT" \
         --dir "$HELIOS_DOWNLOAD_DIR"
-    HELIOS_BUNDLE=$(find "$HELIOS_DOWNLOAD_DIR" -maxdepth 1 -type f -name '*.zip' -print -quit)
+    HELIOS_BUNDLE=$(find "$HELIOS_DOWNLOAD_DIR" -maxdepth 1 -type f -name '*.zip' ! -name '*-symbols.zip' -print -quit)
     [ -n "$HELIOS_BUNDLE" ] || { echo "Downloaded Helios artifact did not contain a bundle." >&2; exit 1; }
     [ -f "$HELIOS_BUNDLE.sha256" ] || { echo "Downloaded Helios bundle has no checksum." >&2; exit 1; }
     ( cd "$HELIOS_DOWNLOAD_DIR" && sha256sum -c "$(basename "$HELIOS_BUNDLE").sha256" )
@@ -88,13 +88,18 @@ cp scripts/apps.ps1 scripts/get-icon.ps1 scripts/validate-app.ps1 scripts/path-u
 # Install-time assets that live at the OEM/install root
 cp install.bat nssm.exe RDPApps.reg "$DIST/oem/"
 
-# Include the pinned CI-generated GPU acceleration bundle.
+# Include the pinned CI-generated GPU acceleration bundle. Since the
+# self-contained installer landed the bundle is a single HeliosSetup.exe with
+# Install-Helios.ps1 and payload/ embedded inside it; older bundles shipped the
+# loose Install-Helios.ps1 + payload/ tree instead. Accept either anchor and
+# copy the directory that holds it, so the OEM payload is always a valid
+# C:\OEM\helios for install.bat (which prefers HeliosSetup.exe).
 HELIOS_TMP="$DIST/helios.tmp"
 mkdir -p "$HELIOS_TMP"
 unzip -q "$HELIOS_BUNDLE" -d "$HELIOS_TMP"
-HELIOS_INSTALL=$(find "$HELIOS_TMP" -type f -name Install-Helios.ps1 -print -quit)
-[ -n "$HELIOS_INSTALL" ] || { echo "Install-Helios.ps1 was not found in $HELIOS_BUNDLE"; exit 1; }
-cp -a "$(dirname "$HELIOS_INSTALL")" "$DIST/oem/helios"
+HELIOS_ANCHOR=$(find "$HELIOS_TMP" -type f \( -name HeliosSetup.exe -o -name Install-Helios.ps1 \) -print -quit)
+[ -n "$HELIOS_ANCHOR" ] || { echo "Neither HeliosSetup.exe nor Install-Helios.ps1 was found in $HELIOS_BUNDLE"; exit 1; }
+cp -a "$(dirname "$HELIOS_ANCHOR")" "$DIST/oem/helios"
 rm -rf "$HELIOS_TMP"
 
 # The update payload is what lands in C:\Program Files\WinBoat\server —

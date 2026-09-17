@@ -223,7 +223,14 @@ export class InstallManager {
             logger.error(error.message);
             throw error;
         }
-        if (this.conf.gpuEnabled && !fs.existsSync(path.join(appPath, "helios", "Install-Helios.ps1"))) {
+        // The Helios bundle is either the self-contained installer
+        // (HeliosSetup.exe, which embeds the PowerShell payload) or, on older
+        // bundles, the loose Install-Helios.ps1 tree.
+        if (
+            this.conf.gpuEnabled &&
+            !fs.existsSync(path.join(appPath, "helios", "HeliosSetup.exe")) &&
+            !fs.existsSync(path.join(appPath, "helios", "Install-Helios.ps1"))
+        ) {
             throw new Error("The WinBoat build does not contain the Helios Windows bundle.");
         }
 
