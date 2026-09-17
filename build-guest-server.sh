@@ -88,18 +88,14 @@ cp scripts/apps.ps1 scripts/get-icon.ps1 scripts/validate-app.ps1 scripts/path-u
 # Install-time assets that live at the OEM/install root
 cp install.bat nssm.exe RDPApps.reg "$DIST/oem/"
 
-# Include the pinned CI-generated GPU acceleration bundle. Since the
-# self-contained installer landed the bundle is a single HeliosSetup.exe with
-# Install-Helios.ps1 and payload/ embedded inside it; older bundles shipped the
-# loose Install-Helios.ps1 + payload/ tree instead. Accept either anchor and
-# copy the directory that holds it, so the OEM payload is always a valid
-# C:\OEM\helios for install.bat (which prefers HeliosSetup.exe).
+# Include the pinned CI-generated GPU acceleration bundle (a self-contained
+# HeliosSetup.exe).
 HELIOS_TMP="$DIST/helios.tmp"
 mkdir -p "$HELIOS_TMP"
 unzip -q "$HELIOS_BUNDLE" -d "$HELIOS_TMP"
-HELIOS_ANCHOR=$(find "$HELIOS_TMP" -type f \( -name HeliosSetup.exe -o -name Install-Helios.ps1 \) -print -quit)
-[ -n "$HELIOS_ANCHOR" ] || { echo "Neither HeliosSetup.exe nor Install-Helios.ps1 was found in $HELIOS_BUNDLE"; exit 1; }
-cp -a "$(dirname "$HELIOS_ANCHOR")" "$DIST/oem/helios"
+HELIOS_INSTALL=$(find "$HELIOS_TMP" -type f -name HeliosSetup.exe -print -quit)
+[ -n "$HELIOS_INSTALL" ] || { echo "HeliosSetup.exe was not found in $HELIOS_BUNDLE"; exit 1; }
+cp -a "$(dirname "$HELIOS_INSTALL")" "$DIST/oem/helios"
 rm -rf "$HELIOS_TMP"
 
 # The update payload is what lands in C:\Program Files\WinBoat\server —

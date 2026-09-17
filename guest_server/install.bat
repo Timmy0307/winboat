@@ -42,14 +42,9 @@ netsh advfirewall firewall add rule name="Allow WinBoat Updater 7150" dir=in act
 :: Startup Tasks
 schtasks /create /tn "TimeSyncTask" /sc ONSTART /RL HIGHEST /tr "\"%WB_DIR%\server\scripts\time-sync.bat\"" /RU SYSTEM
 
-:: Optional Helios GPU provisioning. Prefer the self-contained installer exe;
-:: fall back to the PowerShell payload for older bundles. Automatic mode
-:: persists itself across the two host-controlled restarts and reports progress
-:: through the Guest Server (provisioning-status.json).
+:: Optional Helios GPU provisioning via the self-contained installer. Automatic
+:: mode persists itself across the two host-controlled restarts and reports
+:: progress through the Guest Server (provisioning-status.json).
 if exist "%OEM_DIR%\helios\HeliosSetup.exe" (
     "%OEM_DIR%\helios\HeliosSetup.exe" --silent --automatic
-) else (
-    if exist "%OEM_DIR%\helios\Install-Helios.ps1" (
-        powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%OEM_DIR%\helios\Install-Helios.ps1" -Automatic
-    )
 )
