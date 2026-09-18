@@ -10,9 +10,9 @@ export VERSION="$(bun -p "require('./package.json').version")"
 export COMMIT_HASH="$(git rev-parse --short HEAD)"
 export BUILD_TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S')
 
-# Helios WDDM bundle at 9c428ac
+# Helios WDDM bundle at 4c7779b
 HELIOS_REPOSITORY="winboat-org/helios"
-HELIOS_RUN_ID="35230590982"
+HELIOS_RUN_ID="35241263131"
 HELIOS_ARTIFACT="helios-windows-x64-22.22.288.0-Release"
 HELIOS_DOWNLOAD_DIR=""
 
